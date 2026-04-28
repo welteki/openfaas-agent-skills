@@ -5,8 +5,6 @@ description: Develops OpenFaaS serverless functions in Python, Node.js, or Go us
 
 # OpenFaaS Function Development
 
-Guides creation and iteration of OpenFaaS functions: scaffolding via templates, writing handlers in supported languages, configuring `stack.yaml`, managing secrets, and building/deploying with `faas-cli`.
-
 ## Pre-flight checks
 
 Before generating any function code, verify the toolchain is available and configured.
@@ -27,8 +25,37 @@ faas-cli local-run <fn-name>                  # iterate locally with Docker
 faas-cli up -f <fn-name>.yml                  # build + push + deploy
 ```
 
-Use `faas-cli up --watch --tag=digest` for live-reload during cluster-based development.
-Use `faas-cli local-run --watch` for live-reload of a single function locally without a cluster.
+See [Testing with `local-run`](#testing-with-local-run) below for the local loop and [Iterating fast](#iterating-fast) for live-reload options.
+
+## Testing with `local-run`
+
+`faas-cli local-run` builds the function and starts it as a Docker container that listens on `http://127.0.0.1:8080`. **It is a long-running, foreground process** — it does not return until you stop it (Ctrl+C). Do not pipe input to it or expect it to exit on its own.
+
+The workflow is two steps:
+
+1. Start the function in a separate process — either in another terminal, in a tmux pane, or as a background process:
+
+   ```bash
+   faas-cli local-run my-fn &           # background, same shell
+   # or run in another terminal:
+   faas-cli local-run my-fn
+   ```
+
+2. Once you see `Listening on port: 8080`, invoke the function from elsewhere:
+
+   ```bash
+   curl -i http://127.0.0.1:8080 -d "hello"
+   ```
+
+When done, stop the container with Ctrl+C (foreground) or `kill %1` (background).
+
+If port 8080 is already in use, override it with `--port`:
+
+```bash
+faas-cli local-run my-fn --port 3001
+```
+
+If `stack.yaml` has multiple functions, pass the function name as an argument: `faas-cli local-run <fn-name>`.
 
 ## Choosing a template
 
