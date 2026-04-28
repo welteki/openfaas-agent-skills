@@ -146,7 +146,6 @@ Update with `faas-cli secret update`. Re-read the file on each invocation (or us
 | `faas-cli push -f stack.yml` | Push image to registry |
 | `faas-cli deploy -f stack.yml` | Deploy to cluster |
 | `faas-cli up -f stack.yml` | Build + push + deploy in one step |
-| `faas-cli up --skip-push` | Useful for KinD/local registries |
 | `faas-cli local-run [name]` | Build + run as a local Docker container on `:8080` |
 | `faas-cli publish --platforms linux/arm64,linux/amd64` | Multi-arch build + push (use instead of build/push for ARM) |
 | `faas-cli build --shrinkwrap` | Emit a `./build/<fn>/Dockerfile` for use with external builders |
@@ -154,6 +153,8 @@ Update with `faas-cli secret update`. Re-read the file on each invocation (or us
 | `faas-cli list -v` / `faas-cli describe <fn>` | Inspect deployed functions |
 | `faas-cli logs <fn>` | Tail function logs |
 | `echo "data" \| faas-cli invoke <fn>` | Invoke a deployed function |
+
+Do not pass `--skip-push` when deploying to a Kubernetes cluster — the cluster pulls from a registry, so skipping the push leaves it with a missing or stale image. Only use `--skip-push` for faasd on the same host or when you have loaded the image into the cluster yourself (`kind load docker-image`, etc.).
 
 ## Always advance the image tag on deploy
 
