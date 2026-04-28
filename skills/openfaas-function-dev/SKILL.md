@@ -155,10 +155,44 @@ Update with `faas-cli secret update`. Re-read the file on each invocation (or us
 | `faas-cli logs <fn>` | Tail function logs |
 | `echo "data" \| faas-cli invoke <fn>` | Invoke a deployed function |
 
+## Always advance the image tag on deploy
+
+**Critical:** Kubernetes will not pull a new image if the tag has not changed. Depending on the cluster's `imagePullPolicy` (commonly `IfNotPresent`), pushing a new image to the same tag — including `:latest` — can leave the old image running in the function pod. Every deploy must use a new, unique image tag.
+
+Two ways to ensure tags advance:
+
+1. **Let the CLI generate a unique tag** by passing `--tag` to `build`, `push`, `publish`, `deploy`, or `up`:
+
+   | Value | Tag suffix | When to use |
+   |---|---|---|
+   | `--tag=digest` | content hash of the handler folder | Rebuilds and watch loops; new tag only when code actually changes. Recommended for `--watch`. |
+   | `--tag=sha` | short Git commit SHA | CI/CD on a clean working tree. |
+   | `--tag=branch` | branch + short SHA | Preview deploys per branch. |
+   | `--tag=describe` | output of `git describe` | Release builds with annotated tags. |
+
+   The generated value is appended to whatever tag is in `stack.yaml` (or `latest` if none). Example:
+
+   ```bash
+   faas-cli up -f stack.yml --tag=digest
+   # builds and deploys image: ghcr.io/acme/my-fn:latest-abc123…
+   ```
+
+2. **Bump the tag manually in `stack.yaml`** using `envsubst`:
+
+   ```yaml
+   image: ghcr.io/acme/my-fn:${TAG:-0.1.0}
+   ```
+
+   ```bash
+   TAG=0.1.1 faas-cli up
+   ```
+
+Avoid relying on `:latest` for cluster deploys. Reserve `:latest` for `local-run` only. The `--tag` flag combines with environment-variable substitution, so a CI pipeline can set a base version in `stack.yaml` and append `--tag=sha` for traceability.
+
 ## Iterating fast
 
 - Use `faas-cli local-run --watch` for the tightest loop on a single function (no cluster needed).
-- Use `faas-cli up --watch --tag=digest` when functions need cluster services (other functions, gateway).
+- Use `faas-cli up --watch --tag=digest` when functions need cluster services (other functions, gateway). The `--tag=digest` is required here so each save produces a unique tag the cluster will actually pull.
 - Use `ttl.sh/<user>` as registry for throwaway images during prototyping.
 
 ## Verification checklist
@@ -169,6 +203,7 @@ After scaffolding/editing:
 3. Handler returns proper status codes and `Content-Type` headers when returning JSON.
 4. Secrets are read from `/var/openfaas/secrets/<name>`, not env vars.
 5. `image:` field includes a registry prefix (not bare `<fn>:latest`) before pushing.
+6. When deploying to a cluster, the image tag has advanced since the previous deploy — either via `--tag=digest`/`--tag=sha` or by bumping the tag in `stack.yaml`. Never re-deploy with an unchanged tag.
 
 ## When to load deeper references
 
