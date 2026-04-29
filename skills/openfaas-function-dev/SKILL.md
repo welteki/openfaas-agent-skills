@@ -21,16 +21,18 @@ The standard inner loop is:
 ```bash
 faas-cli new --lang <template> <fn-name>     # scaffold
 # edit ./<fn-name>/handler.<ext>
-faas-cli local-run <fn-name>                  # iterate locally with Docker
+faas-cli local-run --build <fn-name>          # build + run locally with Docker (preferred)
 # OR full cycle:
 faas-cli up -f <fn-name>.yml                  # build + push + deploy
 ```
+
+Prefer `faas-cli local-run --build` for local iteration. It builds the image and runs it in a single command, so a separate `faas-cli build` step is unnecessary. Only run `faas-cli build` on its own when you specifically need the image without running it (e.g. to push, inspect, or hand to another tool).
 
 See [Testing with `local-run`](#testing-with-local-run) below for the local loop and [Iterating fast](#iterating-fast) for live-reload options.
 
 ## Testing with `local-run`
 
-`faas-cli local-run` builds the function and starts it as a Docker container that listens on `http://127.0.0.1:8080`. **It is a long-running, foreground process** — it does not return until you stop it (Ctrl+C). Do not pipe input to it or expect it to exit on its own.
+`faas-cli local-run --build` builds the function and starts it as a Docker container that listens on `http://127.0.0.1:8080` in a single step — there is no need to run `faas-cli build` first. Without `--build`, `local-run` will only run an existing image. **It is a long-running, foreground process** — it does not return until you stop it (Ctrl+C). Do not pipe input to it or expect it to exit on its own.
 
 The workflow is two steps:
 
@@ -170,11 +172,11 @@ Update with `faas-cli secret update`. Re-read the file on each invocation (or us
 
 | Command | Purpose |
 |---|---|
-| `faas-cli build -f stack.yml` | Build image into local Docker library |
+| `faas-cli build -f stack.yml` | Build image into local Docker library (rarely needed on its own — prefer `local-run --build` for local testing or `up` for deploy) |
 | `faas-cli push -f stack.yml` | Push image to registry |
 | `faas-cli deploy -f stack.yml` | Deploy to cluster |
 | `faas-cli up -f stack.yml` | Build + push + deploy in one step |
-| `faas-cli local-run [name]` | Build + run as a local Docker container on `:8080` |
+| `faas-cli local-run --build [name]` | Build + run as a local Docker container on `:8080` (preferred local loop; omit `--build` only if the image is already built) |
 | `faas-cli publish --platforms linux/arm64,linux/amd64` | Multi-arch build + push (use instead of build/push for ARM) |
 | `faas-cli build --shrinkwrap` | Emit a `./build/<fn>/Dockerfile` for use with external builders |
 | `faas-cli generate -f stack.yml` | Convert stack.yml to Kubernetes CRD YAML for GitOps |
@@ -242,12 +244,11 @@ When you do use `kubectl`, prefer read-only commands (`get`, `describe`, `logs`,
 ## Verification checklist
 
 After scaffolding/editing:
-1. `faas-cli build -f stack.yml` succeeds.
-2. `faas-cli local-run <fn>` starts; `curl http://127.0.0.1:8080` returns expected response.
-3. Handler returns proper status codes and `Content-Type` headers when returning JSON.
-4. Secrets are read from `/var/openfaas/secrets/<name>`, not env vars.
-5. `image:` field includes a registry prefix (not bare `<fn>:latest`) before pushing.
-6. When deploying to a cluster, the image tag has advanced since the previous deploy — either via `--tag=digest`/`--tag=sha` or by bumping the tag in `stack.yaml`. Never re-deploy with an unchanged tag.
+1. `faas-cli local-run --build <fn>` starts (this also covers the build step); `curl http://127.0.0.1:8080` returns expected response. Only run `faas-cli build -f stack.yml` separately if you need the image without running it.
+2. Handler returns proper status codes and `Content-Type` headers when returning JSON.
+3. Secrets are read from `/var/openfaas/secrets/<name>`, not env vars.
+4. `image:` field includes a registry prefix (not bare `<fn>:latest`) before pushing.
+5. When deploying to a cluster, the image tag has advanced since the previous deploy — either via `--tag=digest`/`--tag=sha` or by bumping the tag in `stack.yaml`. Never re-deploy with an unchanged tag.
 
 ## When to load deeper references
 
