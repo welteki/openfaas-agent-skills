@@ -164,7 +164,9 @@ Always read secrets from files, never environment variables:
    ```
 3. Read at runtime from `/var/openfaas/secrets/my-token`.
 
-For `local-run`, place the secret file at `./.secrets/my-token` so it can be bind-mounted.
+For `local-run`, place secret files in a `.secrets/` directory **at the project root, next to `stack.yaml`** — for example `./.secrets/my-token`. `faas-cli local-run` bind-mounts this top-level directory into the running container at `/var/openfaas/secrets/`.
+
+**Never create `.secrets/` inside a function's handler folder** (e.g. `./my-fn/.secrets/`). The handler folder is copied into the image during `faas-cli build`, which would bake the secret values directly into the published container image and leak them to anyone who can pull the image. Always keep `.secrets/` outside every handler folder, and add `.secrets/` to `.gitignore` and any `.dockerignore` files.
 
 Update with `faas-cli secret update`. Re-read the file on each invocation (or use `fsnotify`) since the kubelet rotates the mounted file.
 
@@ -246,7 +248,7 @@ When you do use `kubectl`, prefer read-only commands (`get`, `describe`, `logs`,
 After scaffolding/editing:
 1. `faas-cli local-run --build <fn>` starts (this also covers the build step); `curl http://127.0.0.1:8080` returns expected response. Only run `faas-cli build -f stack.yml` separately if you need the image without running it.
 2. Handler returns proper status codes and `Content-Type` headers when returning JSON.
-3. Secrets are read from `/var/openfaas/secrets/<name>`, not env vars.
+3. Secrets are read from `/var/openfaas/secrets/<name>`, not env vars. Any local `.secrets/` directory lives next to `stack.yaml`, never inside a handler folder (which would bake secrets into the image).
 4. `image:` field includes a registry prefix (not bare `<fn>:latest`) before pushing.
 5. When deploying to a cluster, the image tag has advanced since the previous deploy — either via `--tag=digest`/`--tag=sha` or by bumping the tag in `stack.yaml`. Never re-deploy with an unchanged tag.
 
