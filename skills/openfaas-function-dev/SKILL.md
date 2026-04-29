@@ -10,8 +10,9 @@ description: Develops OpenFaaS serverless functions in Python, Node.js, or Go us
 Before generating any function code, verify the toolchain is available and configured.
 
 1. Check `faas-cli` is installed: `faas-cli version`. If missing, install with `arkade get faas-cli` or `curl -sSL https://cli.openfaas.com | sudo sh`.
-2. Confirm Docker is running: `docker info`.
-3. If deploying to a cluster, expect `OPENFAAS_URL` and `OPENFAAS_PREFIX` to be set (the latter is the image registry prefix used by `faas-cli new`, e.g. `ghcr.io/acme` or `ttl.sh/<user>`).
+2. Inspect the output of `faas-cli version` for the gateway's orchestration provider. If it reports a Kubernetes server version, the cluster is Kubernetes-backed and `kubectl` is available as a break-glass option (see [Use kubectl only as a break glass](#use-kubectl-only-as-a-break-glass)).
+3. Confirm Docker is running: `docker info`.
+4. If deploying to a cluster, expect `OPENFAAS_URL` and `OPENFAAS_PREFIX` to be set (the latter is the image registry prefix used by `faas-cli new`, e.g. `ghcr.io/acme` or `ttl.sh/<user>`).
 
 ## Core workflow
 
@@ -36,9 +37,9 @@ The workflow is two steps:
 1. Start the function in a separate process — either in another terminal, in a tmux pane, or as a background process:
 
    ```bash
-   faas-cli local-run my-fn &           # background, same shell
+   faas-cli local-run --build my-fn &           # background, same shell
    # or run in another terminal:
-   faas-cli local-run my-fn
+   faas-cli local-run --build my-fn
    ```
 
 2. Once you see `Listening on port: 8080`, invoke the function from elsewhere:
@@ -52,10 +53,10 @@ When done, stop the container with Ctrl+C (foreground) or `kill %1` (background)
 If port 8080 is already in use, override it with `--port`:
 
 ```bash
-faas-cli local-run my-fn --port 3001
+faas-cli local-run --build my-fn --port 3001
 ```
 
-If `stack.yaml` has multiple functions, pass the function name as an argument: `faas-cli local-run <fn-name>`.
+If `stack.yaml` has multiple functions, pass the function name as an argument: `faas-cli local-run --build <fn-name>`.
 
 ## Choosing a template
 
@@ -153,7 +154,7 @@ Notes:
 
 Always read secrets from files, never environment variables:
 
-1. Create the secret: `faas-cli secret create my-token --from-file my-token.txt` (or via `kubectl create secret`).
+1. Create the secret: `faas-cli secret create my-token --from-file my-token.txt`. Prefer `faas-cli` for routine work; only fall back to `kubectl create secret` as a break glass when `faas-cli` cannot do the job and `faas-cli version` confirms a Kubernetes server (see [Use kubectl only as a break glass](#use-kubectl-only-as-a-break-glass)).
 2. Bind in `stack.yaml`:
    ```yaml
    secrets:
@@ -222,6 +223,21 @@ Avoid relying on `:latest` for cluster deploys. Reserve `:latest` for `local-run
 - Use `faas-cli local-run --watch` for the tightest loop on a single function (no cluster needed).
 - Use `faas-cli up --watch --tag=digest` when functions need cluster services (other functions, gateway). The `--tag=digest` is required here so each save produces a unique tag the cluster will actually pull.
 - Use `ttl.sh/<user>` as registry for throwaway images during prototyping. **Warning: ttl.sh is a public, anonymous registry** — anyone who guesses the image path can pull it. Never use it for proprietary or customer code, secrets baked into images, or anything you would not publish openly. For private workloads use a private registry (GHCR private, ECR, GCR, Docker Hub private repo, Harbor, etc.) and run `faas-cli registry-login` to authenticate.
+
+## Use kubectl only as a break glass
+
+Drive function development, deployment, and inspection through `faas-cli`. Do not reach for `kubectl` for routine tasks like deploying, listing, invoking, scaling, fetching logs, or managing secrets — `faas-cli` covers these consistently across providers (Kubernetes, faasd, etc.).
+
+Only use `kubectl` when **both** of these are true:
+
+1. `faas-cli version` reports a Kubernetes server (the gateway is running on Kubernetes). On non-Kubernetes providers like faasd, `kubectl` is not applicable — do not use it.
+2. The task is a genuine break-glass or deeper-debugging scenario that `faas-cli` cannot handle, for example:
+   - Inspecting pod-level state: `kubectl -n openfaas-fn describe pod <fn>-<hash>`, `kubectl -n openfaas-fn get events`.
+   - Diagnosing image pull, scheduling, or CrashLoopBackOff issues that `faas-cli logs` and `faas-cli describe` cannot explain.
+   - Examining the OpenFaaS control plane in `openfaas` namespace (gateway, queue-worker, operator).
+   - Checking node, RBAC, NetworkPolicy, or admission-controller behaviour interfering with a function.
+
+When you do use `kubectl`, prefer read-only commands (`get`, `describe`, `logs`, `events`). Avoid mutating function resources (`apply`, `edit`, `delete`, `patch`) — make those changes through `stack.yaml` and `faas-cli` so the source of truth stays consistent. Note your reason for breaking glass in the response so the user understands why `faas-cli` was insufficient.
 
 ## Verification checklist
 
