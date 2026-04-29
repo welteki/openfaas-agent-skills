@@ -221,7 +221,7 @@ Avoid relying on `:latest` for cluster deploys. Reserve `:latest` for `local-run
 
 - Use `faas-cli local-run --watch` for the tightest loop on a single function (no cluster needed).
 - Use `faas-cli up --watch --tag=digest` when functions need cluster services (other functions, gateway). The `--tag=digest` is required here so each save produces a unique tag the cluster will actually pull.
-- Use `ttl.sh/<user>` as registry for throwaway images during prototyping.
+- Use `ttl.sh/<user>` as registry for throwaway images during prototyping. **Warning: ttl.sh is a public, anonymous registry** — anyone who guesses the image path can pull it. Never use it for proprietary or customer code, secrets baked into images, or anything you would not publish openly. For private workloads use a private registry (GHCR private, ECR, GCR, Docker Hub private repo, Harbor, etc.) and run `faas-cli registry-login` to authenticate.
 
 ## Verification checklist
 
