@@ -66,6 +66,18 @@ faas-cli diag -d 5m diag.yaml      # collect for 5 minutes
 
 Attach the tar.gz when asking for help.
 
+## Debug helper functions from the store
+
+The OpenFaaS function store ships several small functions that are very
+useful while reproducing or isolating a function bug — `printer` to
+inspect requests / async callbacks, `chaos` to drive error and timeout
+paths, `env` to verify env / secrets injection, `curl` and `nslookup` to
+debug in-cluster connectivity, and a few more.
+
+These are equally valuable during normal development and testing, so they
+are documented in their own reference: see
+[reference/store-helpers.md](store-helpers.md).
+
 ## My function isn't updating
 
 The most common cause is a re-pushed image with the same tag. Kubernetes will
