@@ -1,6 +1,6 @@
 ---
 name: openfaas-function-dev
-description: Develops OpenFaaS serverless functions in Python, Node.js, or Go using faas-cli. Use when scaffolding from templates, writing handlers, configuring stack.yaml, adding dependencies or secrets, building images, deploying to OpenFaaS, or iterating locally with local-run.
+description: Develops and troubleshoots OpenFaaS serverless functions in Python, Node.js, or Go using faas-cli. Use when scaffolding from templates, writing handlers, configuring stack.yaml, adding dependencies or secrets, building images, deploying to OpenFaaS, iterating locally with local-run, or diagnosing function issues like image-pull errors, missing secrets, timeouts, empty bodies, slow start-up, or stalled Function CRs.
 ---
 
 # OpenFaaS Function Development
@@ -243,6 +243,57 @@ Only use `kubectl` when **both** of these are true:
 
 When you do use `kubectl`, prefer read-only commands (`get`, `describe`, `logs`, `events`). Avoid mutating function resources (`apply`, `edit`, `delete`, `patch`) — make those changes through `stack.yaml` and `faas-cli` so the source of truth stays consistent. Note your reason for breaking glass in the response so the user understands why `faas-cli` was insufficient.
 
+## Troubleshooting
+
+When a function misbehaves, start with `faas-cli` and only fall back to
+`kubectl` per [Use kubectl only as a break glass](#use-kubectl-only-as-a-break-glass):
+
+```bash
+faas-cli list -v                   # replicas, image, invocations
+faas-cli describe <fn>              # current image/env/secrets/status
+faas-cli logs <fn> --tail 200       # recent function logs
+echo "ping" | faas-cli invoke <fn>  # exercise end-to-end
+```
+
+**Scope: function configuration only.** This skill is for diagnosing and
+changing **functions** — `stack.yaml`, handler code, function env/secrets,
+function-level timeouts. Some fixes below require changing the OpenFaaS
+**platform** itself (gateway, queue-worker, operator, NATS, Prometheus,
+Helm values, ingress / LB). **Do not patch, edit, or `helm upgrade`
+OpenFaaS components.** Surface the suspected platform-level change to the
+user — what component, what setting, why — and let them apply it (or
+involve their cluster operator).
+
+For deeper, shareable cluster-wide diagnostics use the `diag` plugin.
+`faas-cli diag` is a break-glass tool at the same level as `kubectl` — it
+talks directly to the Kubernetes API (pods, events, Function CRs,
+Prometheus, stern-style logs) and needs a kubeconfig with access to the
+`openfaas` namespace and any function namespaces. Reach for it only when the
+first-line `faas-cli` commands above are not enough:
+
+```bash
+faas-cli plugin get diag
+faas-cli diag config simple
+faas-cli diag -d 5m diag.yaml       # produces ./run/<date>/index.html + tar.gz
+```
+
+Common function-level symptoms and the first thing to check:
+
+| Symptom | First check |
+|---|---|
+| Code change not visible after deploy | Image tag did not advance — redeploy with `faas-cli up --tag=digest`. See [Always advance the image tag on deploy](#always-advance-the-image-tag-on-deploy). |
+| `0/1` pods, `ImagePullBackOff`, `CrashLoopBackOff` | `faas-cli logs <fn>`; if empty, break-glass `kubectl describe -n openfaas-fn deploy/<fn>` and `kubectl get events -n openfaas-fn`. Usual causes: missing secret, private registry without pull secret, handler crash on boot, OOMKilled. |
+| Function CR stuck in `stalled` status | Fix the `.Spec` issue (missing secret, bad limits) and let the operator reconcile, or force a retry by bumping `com.openfaas.uid` annotation on the Function CR. |
+| Function name rejected | CRD limits names to 63 chars — shorten and use a `namespace:`. |
+| Timeouts | Check function logs first; then verify function-level `read_timeout`/`write_timeout`/`exec_timeout` in `stack.yaml`. Gateway timeouts and cloud LB idle timeouts may also need bumping — flag these to the user; do not patch them yourself. Use `http://gateway.openfaas:8080` for in-cluster calls. |
+| Empty / nil request body in handler | Caller missing `Content-Type` header. For legacy/WSGI upstreams set `http_buffer_req_body: true`. |
+| Slow start-up flapping readiness | Add a custom HTTP health-check path and/or extend the initial health-check delay. |
+| Want to test without deploying | `faas-cli local-run --build <fn>` (preferred) or `faas-cli build` + `docker run -v $(pwd)/.secrets:/var/openfaas/secrets ...`. |
+| JSON / structured logs are wrapped in a prefix | Set `prefix_logs: false` on the function. |
+
+For step-by-step procedures, break-glass `kubectl` snippets, and links to the
+upstream docs, read [reference/troubleshooting.md](reference/troubleshooting.md).
+
 ## Verification checklist
 
 After scaffolding/editing:
@@ -256,4 +307,5 @@ After scaffolding/editing:
 
 - For full handler examples per language → read [reference/handlers.md](reference/handlers.md).
 - For the complete stack.yaml schema and advanced fields → read [reference/stack-yaml.md](reference/stack-yaml.md).
-- Official docs: https://docs.openfaas.com/languages/overview/ and blog: https://www.openfaas.com/blog/.
+- For step-by-step troubleshooting of function issues (didn't start, timeouts, stalled CR, empty body, slow start-up, etc.) → read [reference/troubleshooting.md](reference/troubleshooting.md).
+- Official docs: https://docs.openfaas.com/languages/overview/, troubleshooting: https://docs.openfaas.com/deployment/troubleshooting/, and blog: https://www.openfaas.com/blog/.
