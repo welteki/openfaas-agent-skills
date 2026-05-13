@@ -1,6 +1,6 @@
 ---
 name: openfaas-function-dev
-description: Develops and troubleshoots OpenFaaS serverless functions in Python, Node.js, or Go using faas-cli. Use when scaffolding from templates, writing handlers, configuring stack.yaml, adding dependencies or secrets, building images, deploying to OpenFaaS, iterating locally with local-run, or diagnosing function issues like image-pull errors, missing secrets, timeouts, empty bodies, slow start-up, or stalled Function CRs.
+description: Develops and troubleshoots OpenFaaS serverless functions in Python, Node.js, or Go using faas-cli. Use when scaffolding from templates, writing handlers, configuring stack.yaml, adding dependencies or secrets, building images, deploying to OpenFaaS, iterating locally with local-run, scheduling functions on a cron timer, wiring functions to event-sources (Kafka, Postgres, SQS, SNS, RabbitMQ, Pub/Sub, Cron), or diagnosing function issues like image-pull errors, missing secrets, timeouts, empty bodies, slow start-up, or stalled Function CRs.
 ---
 
 # OpenFaaS Function Development
@@ -228,6 +228,14 @@ Avoid relying on `:latest` for cluster deploys. Reserve `:latest` for `local-run
 - Use `faas-cli up --watch --tag=digest` when functions need cluster services (other functions, gateway). The `--tag=digest` is required here so each save produces a unique tag the cluster will actually pull.
 - Use `ttl.sh/<user>` as registry for throwaway images during prototyping. **Warning: ttl.sh is a public, anonymous registry** — anyone who guesses the image path can pull it. Never use it for proprietary or customer code, secrets baked into images, or anything you would not publish openly. For private workloads use a private registry (GHCR private, ECR, GCR, Docker Hub private repo, Harbor, etc.) and run `faas-cli registry-login` to authenticate.
 
+## Triggers and scheduling
+
+Functions are invoked over HTTP by default. To run them on a schedule or from an external event-source, use an official OpenFaaS **event-connector** (Cron, Kafka, Postgres, SQS, SNS, Pub/Sub, RabbitMQ) by adding a `topic:` annotation in `stack.yaml`. Do not build polling or subscription SDKs into the handler.
+
+**For scheduled / cron-style invocations, use the OpenFaaS cron-connector — never a Kubernetes `CronJob`.** The cron-connector is portable across all providers (Kubernetes CE/Pro, OpenFaaS Edge/faasd). When the user needs a schedule, read [reference/cron-schedule.md](reference/cron-schedule.md) for the annotation pattern and rules.
+
+For the full list of available triggers and the generic connector wiring pattern, read [reference/triggers.md](reference/triggers.md).
+
 ## Helper functions from the store
 
 The OpenFaaS function store ships small pre-built functions that are
@@ -332,6 +340,8 @@ After scaffolding/editing:
 
 - For full handler examples per language → read [reference/handlers.md](reference/handlers.md).
 - For the complete stack.yaml schema and advanced fields → read [reference/stack-yaml.md](reference/stack-yaml.md).
+- For scheduling a function on a cron timer (annotation pattern, expression syntax, disable rules) → read [reference/cron-schedule.md](reference/cron-schedule.md).
+- For the full list of official event triggers/connectors (Kafka, Postgres, SQS, SNS, Pub/Sub, RabbitMQ) and the generic `topic:` wiring pattern → read [reference/triggers.md](reference/triggers.md).
 - For patterns using store functions (`printer`, `chaos`, `env`, etc.) during development, testing, and debugging → read [reference/store-helpers.md](reference/store-helpers.md).
 - For step-by-step troubleshooting of function issues (didn't start, timeouts, stalled CR, empty body, slow start-up, etc.) → read [reference/troubleshooting.md](reference/troubleshooting.md).
 - Official docs: https://docs.openfaas.com/languages/overview/, troubleshooting: https://docs.openfaas.com/deployment/troubleshooting/, and blog: https://www.openfaas.com/blog/.
