@@ -61,7 +61,28 @@ unset OPENFAAS_LICENSE_SOURCE OPENFAAS_LICENSE_JWT OPENFAAS_LICENSE_DIR
 
 Clean the temporary directory on both success and failure. Never create the Secret directly from an unnormalized, multi-line license file.
 
-For an intentional license update, follow the [official license update procedure](https://docs.openfaas.com/deployment/pro/#need-to-update-your-license). It requires replacing the Secret and restarting deployments; do not infer permission to do this from a general upgrade request.
+### Replace an existing license
+
+Replace a license only when the user explicitly requests it; do not infer permission from a general upgrade request. Confirm the cluster context, existing Secret, and affected Deployments before mutation:
+
+```bash
+kubectl config current-context
+kubectl get secret openfaas-license -n openfaas
+kubectl get deployments -n openfaas
+```
+
+Normalize and validate the new license as described above, then follow the [official license update procedure](https://docs.openfaas.com/deployment/pro/#need-to-update-your-license):
+
+```bash
+kubectl delete secret openfaas-license -n openfaas
+kubectl create secret generic openfaas-license \
+  -n openfaas \
+  --from-file license="$OPENFAAS_LICENSE_JWT"
+kubectl rollout restart deployment -n openfaas
+kubectl rollout status deployment -n openfaas --timeout=5m
+```
+
+Do not restart workloads unless the replacement Secret was created successfully. Clean the restrictive temporary directory, then follow the authenticated checks in [operations.md](operations.md) and confirm all OpenFaaS Pods are healthy. Do not print the license, decoded payload, subject, or account email during replacement or verification.
 
 ## Select a deployment profile
 
