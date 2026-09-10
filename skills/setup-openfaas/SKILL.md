@@ -53,7 +53,7 @@ Use this section only for CE, Standard, or For Enterprises on Kubernetes. For Ed
    kubectl get nodes
    ```
 
-   Standard and Enterprise license inspection also requires `jq` and `base64`. If no cluster exists, stop and use an appropriate cluster-provisioning workflow such as k3sup rather than improvising a different Kubernetes distribution.
+   If no cluster exists, stop and use an appropriate cluster-provisioning workflow such as k3sup rather than improvising a different Kubernetes distribution.
 
 2. Inspect an existing installation before deciding whether this is a new install or upgrade:
 
@@ -62,7 +62,7 @@ Use this section only for CE, Standard, or For Enterprises on Kubernetes. For Ed
    helm get values openfaas -n openfaas
    ```
 
-   A `release: not found` result is expected for a new installation. Do not overwrite or discard an existing values file or secret.
+   A `release: not found` result is expected for a new installation. Do not overwrite or discard an existing values file or secret. For an existing Standard or Enterprise installation, [check the current static cluster license](references/standard-enterprise.md#check-current-license-status-for-an-installation).
 
 3. Create the namespaces and update the official chart repository:
 
