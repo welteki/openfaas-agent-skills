@@ -5,6 +5,7 @@ Both editions use the same chart and `openfaasPro: true`; entitlements come from
 ## Contents
 
 - [Cluster license](#cluster-license)
+- [Check current license status for an installation](#check-current-license-status-for-an-installation)
 - [Select a deployment profile](#select-a-deployment-profile)
 - [Pre-install Secret checklist](#pre-install-secret-checklist)
 - [Dashboard signing key](#dashboard-signing-key)
@@ -14,10 +15,10 @@ Both editions use the same chart and `openfaasPro: true`; entitlements come from
 
 Verify that the license file exists without displaying it. Preserve an existing `openfaas-license` Secret unless the user explicitly requested license replacement.
 
-Confirm the normalization and claims tools are installed:
+Confirm the normalization tools are installed:
 
 ```bash
-command -v grep sed awk base64 jq
+command -v grep sed awk
 ```
 
 Issued files may contain a comment header and `---` separator instead of a bare JWT. Normalize one JWT line into a restrictive temporary file; never modify the source license:
@@ -37,9 +38,22 @@ chmod 600 "$OPENFAAS_LICENSE_JWT"
 awk -F. 'NF == 3 { found=1 } END { exit !found }' "$OPENFAAS_LICENSE_JWT"
 ```
 
-For an Enterprise or IAM request, inspect only the non-secret entitlement and expiry claims with base64url-safe decoding. Do not print the JWT or its complete payload:
+Unless the environment is offline or air-gapped, ensure the Pro plugin's license command is available, then filter its identity metadata from the output:
 
 ```bash
+if ! faas-cli pro license print --help >/dev/null 2>&1; then
+  faas-cli plugin get pro
+fi
+faas-cli pro license print "$OPENFAAS_LICENSE_JWT" |
+  awk '/^(Products|Status):/'
+```
+
+`license print` checks the license format, supported product, and temporal claim status, but does not verify the signature. Inspect the reported status rather than relying only on its exit code. Do not use `license validate` for a cluster license because it requires the separate `openfaas-cli` entitlement.
+
+When the plugin cannot be downloaded, inspect only the non-secret entitlement and expiry claims with base64url-safe decoding:
+
+```bash
+command -v base64 jq
 cut -d. -f2 "$OPENFAAS_LICENSE_JWT" | tr '_-' '/+' \
   | awk '{m=length($0)%4; if(m==2)$0=$0"=="; else if(m==3)$0=$0"="; print}' \
   | base64 -d | jq '{products, exp}'
@@ -60,6 +74,20 @@ unset OPENFAAS_LICENSE_SOURCE OPENFAAS_LICENSE_JWT OPENFAAS_LICENSE_DIR
 ```
 
 Clean the temporary directory on both success and failure. Never create the Secret directly from an unnormalized, multi-line license file.
+
+### Check current license status for an installation
+
+For an existing Standard or Enterprise installation, read the static cluster license from the Secret and report only its entitlement and expiration status:
+
+```bash
+kubectl get secret openfaas-license -n openfaas \
+  -o jsonpath='{.data.license}' |
+  base64 --decode |
+  faas-cli pro license print |
+  awk '/^(Expires in|Products|Status):/'
+```
+
+`Expires in` shows how long the license remains valid and its expiration date. `Status` also identifies licenses that are not yet valid or have expired. Do not report the unfiltered output because it may contain identity metadata.
 
 ### Replace an existing license
 

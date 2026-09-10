@@ -29,6 +29,14 @@ The CLI license is separate from the Kubernetes cluster license.
   faas-cli pro enable
   ```
 
+Before using a static CLI license from a file, validate its signature, temporal claims, and `openfaas-cli` entitlement without printing its identity metadata:
+
+```bash
+faas-cli pro license validate ~/.openfaas/LICENSE_CLI >/dev/null
+```
+
+Use the selected CLI-license path when it differs from the default. This command is specific to the CLI entitlement; do not use it to validate the Kubernetes cluster license.
+
 Do not copy the cluster `LICENSE` into `LICENSE_CLI` unless OpenFaaS supplied the same credential for both purposes.
 
 For unattended tests that actually require a Pro plugin feature, require a static CLI license through `LICENSE_CLI`, `--license-file`, or injected `OPENFAAS_LICENSE`. Do not start `faas-cli pro enable` because its browser/device flow requires a human. A missing CLI license is not a blocker for a Basic Auth installation.
